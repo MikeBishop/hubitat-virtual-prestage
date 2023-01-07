@@ -97,7 +97,7 @@ void updateDevice(target, targetProperty = null) {
         def command = it[3];
         def colorMode = it[4];
 
-        if( colorMode && primaryDevice.currentValue("colorMode") != colorMode ) {
+        if( colorMode && primaryDevice.currentValue("colorMode") != colorMode && target.hasCapability("ColorMode") ) {
             debug("Skipping ${target} ${property} because color mode is ${primaryDevice.currentValue("colorMode")}");
         }
         else if( property == "level" && target.hasCapability("LevelPreset") ) {
