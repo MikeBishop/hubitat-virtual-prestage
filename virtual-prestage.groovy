@@ -43,8 +43,8 @@ Map mainPage() {
                     input capability, "bool", title: "Sync ${name}?", defaultValue: true
                 }
                 else {
-                    log.debug "Primary device does ${primaryDevice?.hasCapability(capability) ? "" : "not "} support ${capability}"
-                    log.debug "Secondary devices do ${secondaryDevices?.any { it.hasCapability(capability) } ? "" : "not "} support ${capability}"
+                    log.debug "Primary device ${primaryDevice?.hasCapability(capability) ? "does " : "doesn't "} support ${capability}"
+                    log.debug "Secondary devices ${secondaryDevices?.any { it.hasCapability(capability) } ? "do " : "don't "} support ${capability}"
                 }
             }
 
@@ -70,7 +70,7 @@ void initialize() {
     SUPPORTED_PROPERTIES.each{
         def capability = it[1];
         def property = it[2];
-        if( primaryDevice?.hasCapability(capability) ) {
+        if( primaryDevice?.hasCapability(capability) && settings[capability] ) {
             subscribe(primaryDevice, property, "primaryDeviceChanged");
         }
     }
@@ -97,21 +97,19 @@ void updateDevice(target, targetProperty = null) {
         def command = it[3];
         def colorMode = it[4];
 
-        if( colorMode && primaryDevice.currentValue("colorMode") != colorMode && target.hasCapability("ColorMode") ) {
-            debug("Skipping ${target} ${property} because color mode is ${primaryDevice.currentValue("colorMode")}");
-        }
-        else if( property == "level" && target.hasCapability("LevelPreset") ) {
-            target.presetLevel = primaryDevice.currentValue("level");
-        }
-        else if( (updateAll || targetProperty == property) &&
-            settings[capability] &&
-            primaryDevice.hasCapability(capability) &&
-            target.hasCapability(capability)
-        ) {
-            def value = primaryDevice.currentValue(property);
-            if( value != null ) {
-                debug("Setting ${target} ${property} to ${value}");
-                target."${command}"(value);
+        if( (updateAll || targetProperty == property) && settings[capability] ) {
+            if( colorMode && primaryDevice.currentValue("colorMode") != colorMode && target.hasCapability("ColorMode") ) {
+                debug("Skipping ${target} ${property} because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
+            }
+            else if( property == "level" && target.hasCapability("LevelPreset") ) {
+                target.presetLevel(primaryDevice.currentValue("level"));
+            }
+            else if( [primaryDevice, target]*.hasCapability(capability).every() ) {
+                def value = primaryDevice.currentValue(property);
+                if( value != null ) {
+                    debug("Setting ${target} ${property} to ${value}");
+                    target."${command}"(value);
+                }
             }
         }
     }
