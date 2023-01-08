@@ -76,20 +76,21 @@ void initialize() {
     }
     subscribe(secondaryDevices, "switch.on", "secondaryDeviceOn");
 
-    secondaryDevices?.findAll { it.currentValue("switch") == "on" }?.
-        each { updateDevice(it) };
+    updateDevices(secondaryDevices?.findAll { it.currentValue("switch") == "on" });
 }
 
 void primaryDeviceChanged(event) {
-    secondaryDevices?.findAll { it.currentValue("switch") == "on" }?.
-        each { updateDevice(it, event.name) };
+    updateDevices(
+        secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: [],
+        event.name
+    );
 }
 
 void secondaryDeviceOn(event) {
-    updateDevice(event.device)
+    updateDevices([event.device])
 }
 
-void updateDevice(target, targetProperty = null) {
+void updateDevices(targets, targetProperty = null) {
     def updateAll = targetProperty == null;
     SUPPORTED_PROPERTIES.each{
         def capability = it[1];
@@ -97,19 +98,31 @@ void updateDevice(target, targetProperty = null) {
         def command = it[3];
         def colorMode = it[4];
 
-        if( (updateAll || targetProperty == property) && settings[capability] ) {
-            if( colorMode && primaryDevice.currentValue("colorMode") != colorMode && target.hasCapability("ColorMode") ) {
-                debug("Skipping ${target} ${property} because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
+        if( (updateAll || targetProperty == property) &&
+            settings[capability] &&
+            primaryDevice?.hasCapability(capability) )
+        {
+            def applicable = targets?.findAll { it.hasCapability(capability) };
+
+            def skip =
+                (colorMode && primaryDevice.currentValue("colorMode") != colorMode) ?
+                applicable.findAll { it.hasCapability("ColorMode") } : [];
+
+            if( skip ) {
+                debug("Skipping ${skip} ${property} because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
             }
-            else if( property == "level" && target.hasCapability("LevelPreset") ) {
-                target.presetLevel(primaryDevice.currentValue("level"));
+
+            if( property == "level" ) {
+                def presettable = targets.findAll { it.hasCapability("LevelPreset") } - skip;
+                presettable*.presetLevel(primaryDevice.currentValue("level"));
+                skip += presettable;
             }
-            else if( [primaryDevice, target]*.hasCapability(capability).every() ) {
-                def value = primaryDevice.currentValue(property);
-                if( value != null ) {
-                    debug("Setting ${target} ${property} to ${value}");
-                    target."${command}"(value);
-                }
+
+            def value = primaryDevice.currentValue(property);
+            if( value != null ) {
+                applicable -= skip;
+                debug("Setting ${applicable} ${property} to ${value}");
+                applicable*."${command}"(value);
             }
         }
     }
