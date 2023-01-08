@@ -42,10 +42,20 @@ Map mainPage() {
                 if( primaryDevice?.hasCapability(capability) && secondaryDevices?.any { it.hasCapability(capability) } ) {
                     input capability, "bool", title: "Sync ${name}?", defaultValue: true
                 }
-                else {
-                    log.debug "Primary device ${primaryDevice?.hasCapability(capability) ? "does " : "doesn't "} support ${capability}"
-                    log.debug "Secondary devices ${secondaryDevices?.any { it.hasCapability(capability) } ? "do " : "don't "} support ${capability}"
+            }
+
+            input "disableSwitch", "capability.switch", title: "Switch to disable",
+                required: false, multiple: false, submitOnChange: true, width: 5
+
+            if( disableSwitch ) {
+                if( disableSwitchState == null ) {
+                    app.updateSetting("disableSwitchState", true);
                 }
+                input "disableSwitchState", "bool",
+                    title: "Disable when switch is " +
+                        maybeBold("on", disableSwitchState) + " or " +
+                        maybeBold("off", !disableSwitchState) + "?",
+                    defaultValue: true, submitOnChange: true, width: 5
             }
 
             input "debugSpew", "bool", title: "Log debug messages?",
@@ -91,6 +101,11 @@ void secondaryDeviceOn(event) {
 }
 
 void updateDevices(targets, targetProperty = null) {
+    if( disableSwitch && disableSwitch.currentValue("switch") == (disableSwitchState ? "on" : "off") ) {
+        debug("Not updating devices because ${disableSwitch} is ${disableSwitch.currentValue("switch")}");
+        return;
+    }
+
     def updateAll = targetProperty == null;
     SUPPORTED_PROPERTIES.each{
         def capability = it[1];
@@ -102,7 +117,7 @@ void updateDevices(targets, targetProperty = null) {
             settings[capability] &&
             primaryDevice?.hasCapability(capability) )
         {
-            def applicable = targets?.findAll { it.hasCapability(capability) };
+            def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
 
             def skip =
                 (colorMode && primaryDevice.currentValue("colorMode") != colorMode) ?
@@ -119,8 +134,8 @@ void updateDevices(targets, targetProperty = null) {
             }
 
             def value = primaryDevice.currentValue(property);
-            if( value != null ) {
-                applicable -= skip;
+            applicable -= skip;
+            if( value != null  && applicable ) {
                 debug("Setting ${applicable} ${property} to ${value}");
                 applicable*."${command}"(value);
             }
@@ -151,4 +166,12 @@ void error(Exception ex) {
 
 void error(String msg) {
     log.error msg
+}
+
+private String maybeBold(String text, Boolean bold) {
+    if (bold) {
+        return "<b>${text}</b>"
+    } else {
+        return text
+    }
 }
