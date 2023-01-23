@@ -89,6 +89,7 @@ void initialize() {
         }
     }
     subscribe(secondaryDevices, "switch.on", "secondaryDeviceOn");
+    subscribe(secondaryDevices, "colorMode", "secondaryDeviceOn");
 
     updateDevices(secondaryDevices?.findAll { it.currentValue("switch") == "on" });
 }
@@ -131,12 +132,19 @@ void updateDevices(targets, targetProperty = null) {
         {
             def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
 
-            def skip =
-                (colorMode && primaryDevice.currentValue("colorMode") != colorMode) ?
-                applicable.findAll { it.hasCapability("ColorMode") } : [];
-
-            if( skip ) {
-                debug("Skipping ${skip} ${property} because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
+            def skip = [];
+            if( colorMode ) {
+                if( primaryDevice.currentValue("colorMode") != colorMode ) {
+                    skip += applicable;
+                    debug("Skipping ${property} for all devices because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
+                }
+                else {
+                    def notApplicable = applicable.findAll { it.hasCapability("ColorMode") && it.currentValue("colorMode") != colorMode };
+                    if( notApplicable ) {
+                        debug("Skipping ${notApplicable} ${property} because color mode is ${notApplicable*.currentValue("colorMode")} and not ${colorMode}");
+                        skip += notApplicable;
+                    }
+                }
             }
 
             if( property == "level" ) {
