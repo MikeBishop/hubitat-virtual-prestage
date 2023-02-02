@@ -134,7 +134,9 @@ void updateDevices(targets, targetProperty = null) {
 
             def skip = [];
             if( colorMode ) {
-                if( primaryDevice.currentValue("colorMode") != colorMode ) {
+                if( primaryDevice.hasCapability("ColorMode") &&
+                    primaryDevice.currentValue("colorMode") != colorMode
+                ) {
                     skip += applicable;
                     debug("Skipping ${property} for all devices because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
                 }
