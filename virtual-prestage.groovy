@@ -1,177 +1,99 @@
 /*
-    Virtual Prestaging
+    Virtual Prestage Parent
     Copyright 2022 Mike Bishop,  All Rights Reserved
 */
-import groovy.transform.Field
 
-definition (
-    name: "Virtual Prestaging", namespace: "evequefou", author: "Mike Bishop", description: "Sync CT and RGBW lights to a primary device for pre-staging",
-    importUrl: "https://raw.githubusercontent.com/MikeBishop/hubitat-virtual-prestage/main/virtual-prestage.groovy",
+
+definition(
+    name: "Virtual Prestaging",
+    namespace: "evequefou",
+    author: "Mike Bishop",
+    description: "Collection of Virtual Prestaging rules",
     category: "Lighting",
-    iconUrl: "",
-    iconX2Url: ""
+    importUrl: "https://raw.githubusercontent.com/MikeBishop/hubitat-virtual-prestage/main/virtual-prestage.groovy",
+	iconUrl: "",
+    iconX2Url: "",
+    iconX3Url: ""
 )
 
 preferences {
-    page(name: "mainPage")
+     page name: "mainPage", title: "", install: true, uninstall: true
 }
 
-Map mainPage() {
-    dynamicPage(name: "mainPage", title: "Virtual Prestaging", install: true, uninstall: true) {
-        initialize();
-        section() {
-            paragraph "Not all devices support prestaging level, and prestaging support " +
-                "for CT and RGB devices is still being defined. This app simulates prestaging " +
-                "by setting all secondary devices to match the source device when " +
-                "the secondary devices are on."
-        }
-        section() {
-            input "thisName", "text", title: "Name this instance", submitOnChange: true
-            if(thisName) app.updateLabel("$thisName")
 
-            input "primaryDevice", "capability.switchLevel", title: "Source Device",
-                required: true, multiple: false, submitOnChange: true
+def installed() {
+    log.info "Installed with settings: ${settings}"
+    initialize()
+}
 
-            input "secondaryDevices", "capability.switchLevel", title: "Secondary Devices",
-                multiple: true, submitOnChange: true
+def uninstalled() {
+    log.info "Uninstalled"
+}
 
-            SUPPORTED_PROPERTIES.each{
-                def name = it[0];
-                def capability = it[1];
+def updated() {
+    log.info "Updated with settings: ${settings}"
+    unsubscribe()
+    initialize()
+}
 
-                if( primaryDevice?.hasCapability(capability) && secondaryDevices?.any { it.hasCapability(capability) } ) {
-                    input capability, "bool", title: "Sync ${name}?", defaultValue: true
+def initialize() {
+    log.info "There are ${childApps.size()} child apps"
+    childApps.each { child ->
+    	log.info "Child app: ${child.label}"
+        child.initialize();
+    }
+
+    if( primaryDevice != null && childApps.size() == 0 ) {
+        // Upgrade from non-parent/child version
+        def newChild = addChildApp("evequefou", "Virtual Prestaging Child", thisName);
+        final List childSettingKeys = [
+            "primaryDevice",
+            "secondaryDevices",
+            "disableSwitch",
+            "disableSwitchState",
+            "ColorTemperature",
+            "ColorControl",
+            "ColorControl",
+            "SwitchLevel",
+            "debugSpew"
+        ];
+        def childSettings = childSettingKeys.collectEntries { [it, settings[it]] };
+        newChild.updateSettings(childSettings);
+        log.info "New child app: ${newChild.label}"
+        childSettingKeys.each { app.removeSetting(it) };
+    }
+}
+
+def getFormat(type, myText=""){
+	if(type == "header-green") return "<div style='color:#ffffff;font-weight: bold;background-color:#81BC00;border: 1px solid;box-shadow: 2px 3px #A9A9A9'>${myText}</div>"
+    if(type == "line") return "\n<hr style='background-color:#1A77C9; height: 1px; border: 0;'></hr>"
+	if(type == "title") return "<h2 style='color:#1A77C9;font-weight: bold'>${myText}</h2>"
+}
+
+def mainPage() {
+    dynamicPage(name: "mainPage", install: true, uninstall: true) {
+        def appInstalled = app.getInstallationState();
+
+        if (appInstalled != 'COMPLETE') {
+    		section{paragraph "Please hit 'Done' to install '${app.label}' parent app "}
+  	    }
+        else {
+			section() {
+                input "thisName", "text", title: "Name this instance", submitOnChange: true
+                if(thisName) {
+                    app.updateLabel("$thisName")
                 }
+
+				paragraph "Each child instance can be configured to sync a specific set of devices. " +
+                    "You can create as many instances as you need to cover all of your devices. " +
+                    "For example, you might have a set of RGBW lights that you want to sync to a " +
+                    "primary device, and a set of CT lights that you want to sync to a different " +
+                    "primary device."
+
             }
-
-            input "disableSwitch", "capability.switch", title: "Switch to disable",
-                required: false, multiple: false, submitOnChange: true, width: 5
-
-            if( disableSwitch ) {
-                if( disableSwitchState == null ) {
-                    app.updateSetting("disableSwitchState", true);
-                }
-                input "disableSwitchState", "bool",
-                    title: "Disable when switch is " +
-                        maybeBold("on", disableSwitchState) + " or " +
-                        maybeBold("off", !disableSwitchState) + "?",
-                    defaultValue: true, submitOnChange: true, width: 5
-            }
-
-            input "debugSpew", "bool", title: "Log debug messages?",
-                submitOnChange: true, defaultValue: false;
-        }
-    }
-}
-
-void installed() {
-    initialize();
-}
-
-void updated() {
-    initialize();
-}
-
-void initialize() {
-    if( !thisName ) {
-        app.updateSetting("thisName", "Virtual Prestaging");
-    }
-    unsubscribe();
-    SUPPORTED_PROPERTIES.each{
-        def capability = it[1];
-        def property = it[2];
-        if( primaryDevice?.hasCapability(capability) && settings[capability] ) {
-            subscribe(primaryDevice, property, "primaryDeviceChanged");
-        }
-    }
-    subscribe(secondaryDevices, "switch.on", "secondaryDeviceOn");
-
-    updateDevices(secondaryDevices?.findAll { it.currentValue("switch") == "on" });
-}
-
-void primaryDeviceChanged(event) {
-    updateDevices(
-        secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: [],
-        event.name
-    );
-}
-
-void secondaryDeviceOn(event) {
-    updateDevices([event.device])
-}
-
-void updateDevices(targets, targetProperty = null) {
-    if( disableSwitch && disableSwitch.currentValue("switch") == (disableSwitchState ? "on" : "off") ) {
-        debug("Not updating devices because ${disableSwitch} is ${disableSwitch.currentValue("switch")}");
-        return;
-    }
-
-    def updateAll = targetProperty == null;
-    SUPPORTED_PROPERTIES.each{
-        def capability = it[1];
-        def property = it[2];
-        def command = it[3];
-        def colorMode = it[4];
-
-        if( (updateAll || targetProperty == property) &&
-            settings[capability] &&
-            primaryDevice?.hasCapability(capability) )
-        {
-            def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
-
-            def skip =
-                (colorMode && primaryDevice.currentValue("colorMode") != colorMode) ?
-                applicable.findAll { it.hasCapability("ColorMode") } : [];
-
-            if( skip ) {
-                debug("Skipping ${skip} ${property} because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
-            }
-
-            if( property == "level" ) {
-                def presettable = targets.findAll { it.hasCapability("LevelPreset") } - skip;
-                presettable*.presetLevel(primaryDevice.currentValue("level"));
-                skip += presettable;
-            }
-
-            def value = primaryDevice.currentValue(property);
-            applicable -= skip;
-            if( value != null  && applicable ) {
-                debug("Setting ${applicable} ${property} to ${value}");
-                applicable*."${command}"(value);
-            }
-        }
-    }
-}
-
-@Field static final List SUPPORTED_PROPERTIES = [
-    ["Color Temperature", "ColorTemperature", "colorTemperature", "setColorTemperature", "CT"],
-    ["Hue", "ColorControl", "hue", "setHue", "RGB"],
-    ["Saturation", "ColorControl", "saturation", "setSaturation", "RGB"],
-    ["Level", "SwitchLevel", "level", "setLevel", null]
-]
-
-void debug(String msg) {
-    if( debugSpew ) {
-        log.debug(msg)
-    }
-}
-
-void warn(String msg) {
-    log.warn(msg)
-}
-
-void error(Exception ex) {
-    log.error "${ex} at ${ex.getStackTrace()}"
-}
-
-void error(String msg) {
-    log.error msg
-}
-
-private String maybeBold(String text, Boolean bold) {
-    if (bold) {
-        return "<b>${text}</b>"
-    } else {
-        return text
-    }
+  			section("<b>Prestaging Rules:</b>") {
+				app(name: "anyOpenApp", appName: "Virtual Prestaging Child", namespace: "evequefou", title: "<b>Create a new prestaging rule</b>", multiple: true)
+			}
+		}
+	}
 }
