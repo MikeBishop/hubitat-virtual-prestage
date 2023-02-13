@@ -103,10 +103,17 @@ void updateSettings(Map newSettings) {
 }
 
 void primaryDeviceChanged(event) {
-    updateDevices(
-        secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: [],
-        event.name
-    );
+    if( event.name != "colorMode" ) {
+        updateDevices(
+            secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: [],
+            event.name
+        );
+    }
+    else {
+        updateDevices(
+            secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: []
+        );
+    }
 }
 
 void secondaryDeviceOn(event) {
@@ -133,7 +140,7 @@ void updateDevices(targets, targetProperty = null) {
             def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
 
             def skip = [];
-            if( colorMode ) {
+            if( colorMode != null ) {
                 if( primaryDevice.hasCapability("ColorMode") &&
                     primaryDevice.currentValue("colorMode") != colorMode
                 ) {
