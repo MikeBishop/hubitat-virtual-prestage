@@ -46,6 +46,9 @@ Map mainPage() {
                 if( primaryDevice?.hasCapability(capability) && secondaryDevices?.any { it.hasCapability(capability) } ) {
                     input capability, "bool", title: "Sync ${name}?", defaultValue: true
                 }
+                else {
+                    app.updateSetting(capability, false);
+                }
             }
 
             input "disableSwitch", "capability.switch", title: "Switch to disable",
@@ -81,17 +84,25 @@ void initialize() {
         app.updateSetting("thisName", "Virtual Prestaging");
     }
     unsubscribe();
-    SUPPORTED_PROPERTIES.each{
-        def capability = it[1];
-        def property = it[2];
-        if( primaryDevice?.hasCapability(capability) && settings[capability] ) {
-            subscribe(primaryDevice, property, "primaryDeviceChanged");
-        }
-    }
-    subscribe(secondaryDevices, "switch.on", "secondaryDeviceOn");
-    subscribe(secondaryDevices, "colorMode", "secondaryDeviceOn");
+    subscribe(disableSwitch, "switch", "initialize")
 
-    updateDevices(secondaryDevices?.findAll { it.currentValue("switch") == "on" });
+    if( !switchDisabled() ) {
+        SUPPORTED_PROPERTIES.each{
+            def capability = it[1];
+            def property = it[2];
+            if( primaryDevice?.hasCapability(capability) && settings[capability] ) {
+                subscribe(primaryDevice, property, "primaryDeviceChanged");
+            }
+        }
+        subscribe(secondaryDevices, "switch.on", "secondaryDeviceOn");
+        subscribe(secondaryDevices, "colorMode", "secondaryDeviceOn");
+        updateDevices(secondaryDevices?.findAll { it.currentValue("switch") == "on" });
+    }
+
+}
+
+Boolean switchDisabled() {
+    return disableSwitch?.currentValue("switch") == (disableSwitchState ? "on" : "off");
 }
 
 void updateSettings(Map newSettings) {
@@ -121,43 +132,33 @@ void secondaryDeviceOn(event) {
 }
 
 void updateDevices(targets, targetProperty = null) {
-    if( disableSwitch && disableSwitch.currentValue("switch") == (disableSwitchState ? "on" : "off") ) {
-        debug("Not updating devices because ${disableSwitch} is ${disableSwitch.currentValue("switch")}");
-        return;
+    def targetProperties = targetProperty == null ?
+            SUPPORTED_PROPERTIES :
+            [SUPPORTED_PROPERTIES.find{ it[2] == targetProperty}];
+    if( primaryDevice.hasCapability("ColorMode") ) {
+        def primaryColorMode = primaryDevice.currentValue("colorMode");
+        targetProperties = targetProperties.findAll{it[4] == null || it[4] == primaryColorMode};
     }
-
-    def updateAll = targetProperty == null;
-    SUPPORTED_PROPERTIES.each{
+    targetProperties.findAll{settings[it[1]]}.each{
         def capability = it[1];
         def property = it[2];
         def command = it[3];
         def colorMode = it[4];
 
-        if( (updateAll || targetProperty == property) &&
-            settings[capability] &&
-            primaryDevice?.hasCapability(capability) )
-        {
-            def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
+        def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
 
+        if( applicable ) {
             def skip = [];
             if( colorMode != null ) {
-                if( primaryDevice.hasCapability("ColorMode") &&
-                    primaryDevice.currentValue("colorMode") != colorMode
-                ) {
-                    skip += applicable;
-                    debug("Skipping ${property} for all devices because ${primaryDevice} color mode is ${primaryDevice.currentValue("colorMode")} and not ${colorMode}");
-                }
-                else {
-                    def notApplicable = applicable.findAll { it.hasCapability("ColorMode") && it.currentValue("colorMode") != colorMode };
-                    if( notApplicable ) {
-                        debug("Skipping ${notApplicable} ${property} because color mode is ${notApplicable*.currentValue("colorMode")} and not ${colorMode}");
-                        skip += notApplicable;
-                    }
+                def notApplicable = applicable.findAll { it.hasCapability("ColorMode") && it.currentValue("colorMode") != colorMode };
+                if( notApplicable ) {
+                    debug("Skipping ${notApplicable} ${property} because color mode is ${notApplicable*.currentValue("colorMode")} and not ${colorMode}");
+                    skip += notApplicable;
                 }
             }
 
             if( property == "level" ) {
-                def presettable = targets.findAll { it.hasCapability("LevelPreset") } - skip;
+                def presettable = (targets - skip).findAll { it.hasCapability("LevelPreset") };
                 presettable*.presetLevel(primaryDevice.currentValue("level"));
                 skip += presettable;
             }
