@@ -157,11 +157,16 @@ void updateDevices(targets, targetProperty = null) {
                 }
             }
 
-            if( property == "level" ) {
-                def presettable = (targets - skip).findAll { it.hasCapability("LevelPreset") };
-                presettable*.presetLevel(primaryDevice.currentValue("level"));
-                skip += presettable;
-            }
+            // This code currently does nothing, since the function is only
+            // called for devices that are on.  If we ever want to uncomment
+            // this, we'll need to call it for devices with this capability as
+            // well.
+            //
+            // if( property == "level" ) {
+            //     def presettable = (targets - skip).findAll { it.hasCapability("LevelPreset") };
+            //     presettable*.presetLevel(primaryDevice.currentValue("level"));
+            //     skip += presettable;
+            // }
 
             def value = primaryDevice.currentValue(property);
             applicable -= skip;
