@@ -135,7 +135,7 @@ void updateDevices(targets, targetProperty = null) {
     def targetProperties = targetProperty == null ?
             SUPPORTED_PROPERTIES :
             [SUPPORTED_PROPERTIES.find{ it[2] == targetProperty}];
-    if( primaryDevice.hasCapability("ColorMode") ) {
+    if( primaryDevice?.hasCapability("ColorMode") ) {
         def primaryColorMode = primaryDevice.currentValue("colorMode");
         targetProperties = targetProperties.findAll{it[4] == null || it[4] == primaryColorMode};
     }
