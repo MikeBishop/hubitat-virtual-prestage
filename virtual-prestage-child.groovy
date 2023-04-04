@@ -65,6 +65,9 @@ Map mainPage() {
                     defaultValue: true, submitOnChange: true, width: 5
             }
 
+            input "meteringDelay", "number", title: "Delay between devices (ms)",
+                defaultValue: 0, multiple: false
+
             input "debugSpew", "bool", title: "Log debug messages?",
                 submitOnChange: true, defaultValue: false;
         }
@@ -172,7 +175,10 @@ void updateDevices(targets, targetProperty = null) {
             applicable -= skip;
             if( value != null  && applicable ) {
                 debug("Setting ${applicable} ${property} to ${value}");
-                applicable*."${command}"(value);
+                applicable.each{
+                    it."${command}"(value);
+                    pauseExecution(meteringDelay ?: 0);
+                }
             }
         }
     }
