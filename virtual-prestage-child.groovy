@@ -176,8 +176,10 @@ void updateDevices(targets, targetProperty = null) {
             if( value != null  && applicable ) {
                 debug("Setting ${applicable} ${property} to ${value}");
                 applicable.each{
-                    it."${command}"(value);
-                    pauseExecution(meteringDelay ?: 0);
+                    if( it.currentValue("switch") == "on" ) {
+                        it."${command}"(value);
+                        pauseExecution(meteringDelay ?: 0);
+                    }
                 }
             }
         }
