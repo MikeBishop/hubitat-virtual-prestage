@@ -68,15 +68,19 @@ void initialize() {
         app.updateSetting("thisName", "Contained Motion");
     }
     unsubscribe();
-    subscribe(boundaryContactSensors, "contact", handleBoundary);
+    subscribeAll();
+}
+
+void subscribeAll() {
     subscribe(motionSensors, "motion", handlePresenceIndication);
+    subscribe(boundaryContactSensors, "contact", handleBoundary);
+    subscribe(presenceContactSensors, "contact", handlePresenceIndication);
 }
 
 void handleBoundary(evt) {
     debug "Received ${evt.name} event (${evt.value}) from ${evt.device}"
     if( evt.value == "open" ) {
-        subscribe(motionSensors, "motion", handlePresenceIndication);
-        subscribe(presenceContactSensors, "contact", handlePresenceIndication);
+        subscribeAll();
     }
     if( !presenceIsIndicated() ) {
         runIn(delay, "triggerNotPresent", [overwrite: false]);
