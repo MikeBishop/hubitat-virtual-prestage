@@ -92,6 +92,7 @@ void triggerNotPresent() {
 }
 
 void sendMessage(value) {
+    unschedule("triggerNotPresent");
     parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: value]]);
 }
 
@@ -100,12 +101,12 @@ void handlePresenceIndication(evt) {
     def indicatesPresence = eventIndicatesPresence(evt);
     def allClosed = boundaryContactSensors?.every { it.currentValue("contact") == "closed" }
     if( indicatesPresence ) {
-        triggerPresent();
         if( allClosed ) {
             debug "Unsubscribing from motion events"
             unsubscribe(motionSensors);
             unsubscribe(presenceContactSensors);
         }
+        triggerPresent();
     }
     else if( !presenceIsIndicated() ) {
         runIn(delay, "triggerNotPresent", [overwrite: false]);
