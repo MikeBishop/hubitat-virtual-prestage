@@ -41,6 +41,9 @@ Map mainPage() {
                 title: "Contact Sensors where Closed indicates Presence",
                 multiple: true
 
+            input "delay", "number", title: "Delay (seconds) before inactive",
+                submitOnChange: true, defaultValue: 0, required: true
+
             input "debugSpew", "bool", title: "Log debug messages?",
                 submitOnChange: true, defaultValue: false;
         }
@@ -49,7 +52,7 @@ Map mainPage() {
 
 void installed() {
     initialize();
-    parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "inactive"]]);
+    triggerNotPresent();
 }
 
 void uninstalled() {
@@ -75,9 +78,21 @@ void handleBoundary(evt) {
         subscribe(motionSensors, "motion", handlePresenceIndication);
         subscribe(presenceContactSensors, "contact", handlePresenceIndication);
     }
-    if( motionSensors.every { it.currentValue("motion") == "inactive" } ) {
-        parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "inactive"]])
+    if( !presenceIsIndicated() ) {
+        runIn(delay, "triggerNotPresent", [overwrite: false]);
     }
+}
+
+void triggerPresent() {
+    sendMessage("active");
+}
+
+void triggerNotPresent() {
+    sendMessage("inactive");
+}
+
+void sendMessage(value) {
+    parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: value]]);
 }
 
 void handlePresenceIndication(evt) {
@@ -85,7 +100,7 @@ void handlePresenceIndication(evt) {
     def indicatesPresence = eventIndicatesPresence(evt);
     def allClosed = boundaryContactSensors?.every { it.currentValue("contact") == "closed" }
     if( indicatesPresence ) {
-        parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "active" ]])
+        triggerPresent();
         if( allClosed ) {
             debug "Unsubscribing from motion events"
             unsubscribe(motionSensors);
@@ -93,7 +108,7 @@ void handlePresenceIndication(evt) {
         }
     }
     else if( !presenceIsIndicated() ) {
-        parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "inactive" ]])
+        runIn(delay, "triggerNotPresent", [overwrite: false]);
     }
 }
 
