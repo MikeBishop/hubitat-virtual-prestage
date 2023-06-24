@@ -34,7 +34,11 @@ Map mainPage() {
             input "motionSensors", "capability.motionSensor", title: "Motion Sensors",
                 required: true, multiple: true
 
-            input "contactSensors", "capability.contactSensor", title: "Contact Sensors",
+            input "boundaryContactSensors", "capability.contactSensor",
+                title: "Boundary Contact Sensors", multiple: true
+
+            input "presenceContactSensors", "capability.contactSensor",
+                title: "Contact Sensors where Closed indicates Presence",
                 multiple: true
 
             input "debugSpew", "bool", title: "Log debug messages?",
@@ -45,6 +49,7 @@ Map mainPage() {
 
 void installed() {
     initialize();
+    parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "inactive"]]);
 }
 
 void uninstalled() {
@@ -60,33 +65,52 @@ void initialize() {
         app.updateSetting("thisName", "Contained Motion");
     }
     unsubscribe();
-    subscribe(contactSensors, "contact", handleContact);
-    subscribe(motionSensors, "motion", handleMotion);
+    subscribe(boundaryContactSensors, "contact", handleBoundary);
+    subscribe(motionSensors, "motion", handlePresenceIndication);
 }
 
-void handleContact(evt) {
+void handleBoundary(evt) {
     debug "Received ${evt.name} event (${evt.value}) from ${evt.device}"
     if( evt.value == "open" ) {
-        subscribe(motionSensors, "motion", handleMotion);
+        subscribe(motionSensors, "motion", handlePresenceIndication);
+        subscribe(presenceContactSensors, "contact", handlePresenceIndication);
     }
     if( motionSensors.every { it.currentValue("motion") == "inactive" } ) {
-        parent.getRootDevice().parse([[id: this.id, zone: thisName, name: "motion", value: "inactive"]])
+        parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "inactive"]])
     }
 }
 
-void handleMotion(evt) {
+void handlePresenceIndication(evt) {
     debug "Received ${evt.name} event (${evt.value}) from ${evt.device}"
-    def allClosed = contactSensors?.every { it.currentContact == "closed" }
-    if( evt.value == "active" ) {
-        parent.getRootDevice().parse([[id: this.id, zone: thisName, name: "motion", value: evt.value]])
+    def indicatesPresence = eventIndicatesPresence(evt);
+    def allClosed = boundaryContactSensors?.every { it.currentValue("contact") == "closed" }
+    if( indicatesPresence ) {
+        parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "active" ]])
         if( allClosed ) {
             debug "Unsubscribing from motion events"
             unsubscribe(motionSensors);
+            unsubscribe(presenceContactSensors);
         }
     }
-    else if( motionSensors.every { it.currentValue("motion") == "inactive" } ) {
-        parent.getRootDevice().parse([[id: this.id, zone: thisName, name: "motion", value: evt.value]])
+    else if( !presenceIsIndicated() ) {
+        parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: "inactive" ]])
     }
+}
+
+Boolean presenceIsIndicated() {
+    if( presenceContactSensors.any { it.currentValue("contact") == "closed"} ||
+        motionSensors.any { it.currentValue("motion") == "active" }
+    ) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+Boolean eventIndicatesPresence(evt) {
+    return (evt.name == "motion" && evt.value == "active") ||
+        (evt.name == "contact" && evt.value == "closed");
 }
 
 void updateSettings(Map newSettings) {
