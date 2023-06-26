@@ -15,10 +15,27 @@ follow it. When the primary device changes, all the secondary devices which are
 on will be updated to follow it. When a secondary device turns on, the selected
 properties from the primary device will be sent to it immediately.
 
-If the target device supports the new LevelPreset capability, levels will be
-preset to it immediately, regardless of switch state. If more prestaging
-capabilities are defined, the app will be updated to use them.
+If true prestaging capabilities are defined for Hubitat in the future, the app
+will be updated to use them.
+
+# Contained Motion Zones
+
+It's a common problem in home automation that people are in a room, even if
+still. One frequent solution, particularly in rooms that are normally closed, is
+to leverage contact sensors. If motion happened in a room and has stopped, but
+the doors are still closed, the room is still occupied.
+
+Another common workaround is contact sensors that trigger from pressure,
+enabling detection of a person in a bed or chair.
+
+This app takes a few basic inputs -- motion sensors, contact sensors that define
+a boundary, and contact sensors that reflect presence -- to power a virtual
+motion sensor. While the boundary contact sensors remain closed, any indication
+of presence causes the output to show activity. Only when the boundary opens and
+there's no continued indication of presence does the output go inactive.
 
 # Change Log
 
-* [1/7/2023]   Initial release
+* [1/7/2023]   Initial release of Virtual Prestaging
+* [4/13/2023]  Assorted improvements to Virtual Prestaging
+* [6/26/2023]  Initial release of Contained Motion
