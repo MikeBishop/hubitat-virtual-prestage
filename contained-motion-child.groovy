@@ -65,7 +65,7 @@ void updated() {
 
 void initialize() {
     if( !thisName ) {
-        app.updateSetting("thisName", "Contained Motion");
+        app.updateSetting("thisName", "Contained Motion Zone");
     }
     unsubscribe();
     subscribeAll();
@@ -83,7 +83,17 @@ void handleBoundary(evt) {
         subscribeAll();
     }
     if( !presenceIsIndicated() ) {
+        delayedTriggerNotPresent();
+    }
+}
+
+void delayedTriggerNotPresent() {
+    if( delay > 0 ) {
+        debug "Setting output to inactive in ${delay} seconds"
         runIn(delay, "triggerNotPresent", [overwrite: false]);
+    }
+    else {
+        triggerNotPresent();
     }
 }
 
@@ -97,6 +107,7 @@ void triggerNotPresent() {
 
 void sendMessage(value) {
     unschedule("triggerNotPresent");
+    debug "Setting output to ${value}"
     parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: value]]);
 }
 
@@ -113,7 +124,7 @@ void handlePresenceIndication(evt) {
         triggerPresent();
     }
     else if( !presenceIsIndicated() ) {
-        runIn(delay, "triggerNotPresent", [overwrite: false]);
+        delayedTriggerNotPresent();
     }
 }
 
