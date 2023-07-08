@@ -87,7 +87,7 @@ void initialize() {
         app.updateSetting("thisName", "Virtual Prestaging");
     }
     unsubscribe();
-    subscribe(disableSwitch, "switch", "switchChanged");
+    subscribe(disableSwitch, "switch", "disableSwitchChanged");
     updateSubscriptions();
 }
 
@@ -95,6 +95,7 @@ void updateSubscriptions() {
     if( switchDisabled() ) {
         unsubscribe(secondaryDevices);
         unsubscribe(primaryDevice);
+        subscribe(disableSwitch, "switch", "switchChanged");
     }
     else {
         SUPPORTED_PROPERTIES.each{
@@ -123,11 +124,14 @@ void updateSettings(Map newSettings) {
     initialize();
 }
 
-void switchChanged(event) {
+void disableSwitchChanged(event) {
+    def disabled = event.value == (disableSwitchState ? "on" : "off")
+    debug "Switch changed to ${event.value} (${disabled ? "disabled" : "enabled"})"
     updateSubscriptions();
 }
 
 void primaryDeviceChanged(event) {
+    debug "Primary device changed: ${event.name} to ${event.value}"
     if( event.name != "colorMode" ) {
         updateDevices(
             secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: [],
@@ -142,6 +146,7 @@ void primaryDeviceChanged(event) {
 }
 
 void secondaryDeviceOn(event) {
+    debug "Secondary device changed: ${event.device.name} to ${event.value}"
     updateDevices([event.device])
 }
 
