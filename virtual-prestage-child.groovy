@@ -87,9 +87,16 @@ void initialize() {
         app.updateSetting("thisName", "Virtual Prestaging");
     }
     unsubscribe();
-    subscribe(disableSwitch, "switch", "initialize")
+    subscribe(disableSwitch, "switch", "switchChanged");
+    updateSubscriptions();
+}
 
-    if( !switchDisabled() ) {
+void updateSubscriptions() {
+    if( switchDisabled() ) {
+        unsubscribe(secondaryDevices);
+        unsubscribe(primaryDevice);
+    }
+    else {
         SUPPORTED_PROPERTIES.each{
             def capability = it[1];
             def property = it[2];
@@ -114,6 +121,10 @@ void updateSettings(Map newSettings) {
         app.updateSetting(it.key, it.value);
     }
     initialize();
+}
+
+void switchChanged(event) {
+    updateSubscriptions();
 }
 
 void primaryDeviceChanged(event) {
