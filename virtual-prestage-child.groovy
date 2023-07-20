@@ -95,7 +95,7 @@ void updateSubscriptions() {
     if( switchDisabled() ) {
         unsubscribe(secondaryDevices);
         unsubscribe(primaryDevice);
-        subscribe(disableSwitch, "switch", "switchChanged");
+        subscribe(disableSwitch, "switch", "disableSwitchChanged");
     }
     else {
         SUPPORTED_PROPERTIES.each{
