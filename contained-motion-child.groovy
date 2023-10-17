@@ -106,10 +106,11 @@ void delayedTriggerNotPresent() {
 }
 
 void triggerPresent() {
+    unschedule("triggerNotPresent");
+    unsubscribe(motionSensorsStay, "motion.active");
     if( state.currentValue == "active" ) {
         return;
     }
-    unsubscribe(motionSensorsStay, "motion.active");
     sendMessage("active");
 }
 
@@ -151,6 +152,10 @@ Boolean presenceIsIndicated() {
         (motionSensors + (motionSensorsStay ?: [])).
             any { it.currentValue("motion") == "active" }
     ) {
+        def activeSensors = (presenceContactSensors ?: []).findAll({ it.currentValue("contact") == "closed" }) +
+            ((motionSensors ?: []) + (motionSensorsStay ?: [])).
+                findAll({ it.currentValue("motion") == "active" });
+        debug("Still waiting for ${activeSensors}");
         return true;
     }
     else {
