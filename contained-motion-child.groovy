@@ -92,9 +92,13 @@ void handleBoundary(evt) {
 }
 
 void delayedTriggerNotPresent() {
+    if( state.currentValue == "inactive" ) {
+        return;
+    }
     if( delay > 0 ) {
         debug "Setting output to inactive in ${delay} seconds"
         runIn(delay, "triggerNotPresent", [overwrite: false]);
+        subscribe(motionSensorsStay, "motion.active", handlePresenceIndication);
     }
     else {
         triggerNotPresent();
@@ -102,10 +106,18 @@ void delayedTriggerNotPresent() {
 }
 
 void triggerPresent() {
+    if( state.currentValue == "active" ) {
+        return;
+    }
+    unsubscribe(motionSensorsStay, "motion.active");
     sendMessage("active");
 }
 
 void triggerNotPresent() {
+    if( state.currentValue == "inactive" ) {
+        return;
+    }
+    unsubscribe(motionSensorsStay, "motion.active");
     sendMessage("inactive");
 }
 
@@ -113,6 +125,7 @@ void sendMessage(value) {
     unschedule("triggerNotPresent");
     debug "Setting output to ${value}"
     parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: value]]);
+    state.currentValue = value;
 }
 
 void handlePresenceIndication(evt) {
