@@ -31,8 +31,11 @@ Map mainPage() {
             input "thisName", "text", title: "Name this instance", submitOnChange: true
             if(thisName) app.updateLabel("$thisName")
 
-            input "motionSensors", "capability.motionSensor", title: "Motion Sensors",
+            input "motionSensors", "capability.motionSensor", title: "Motion Sensors to trigger Active",
                 required: true, multiple: true
+
+            input "motionSensorsStay", "capability.motionSensor", title: "Motion Sensors to keep Active",
+                required: false, multiple: true
 
             input "boundaryContactSensors", "capability.contactSensor",
                 title: "Boundary Contact Sensors", multiple: true
@@ -73,6 +76,7 @@ void initialize() {
 
 void subscribeAll() {
     subscribe(motionSensors, "motion", handlePresenceIndication);
+    subscribe(motionSensorsStay, "motion.inactive", handlePresenceIndication);
     subscribe(boundaryContactSensors, "contact", handleBoundary);
     subscribe(presenceContactSensors, "contact", handlePresenceIndication);
 }
@@ -117,8 +121,9 @@ void handlePresenceIndication(evt) {
     def allClosed = boundaryContactSensors?.every { it.currentValue("contact") == "closed" }
     if( indicatesPresence ) {
         if( allClosed ) {
-            debug "Unsubscribing from motion events"
+            debug "Unsubscribing from presence events"
             unsubscribe(motionSensors);
+            unsubscribe(motionSensorsStay);
             unsubscribe(presenceContactSensors);
         }
         triggerPresent();
@@ -130,7 +135,8 @@ void handlePresenceIndication(evt) {
 
 Boolean presenceIsIndicated() {
     if( presenceContactSensors.any { it.currentValue("contact") == "closed"} ||
-        motionSensors.any { it.currentValue("motion") == "active" }
+        (motionSensors + (motionSensorsStay ?: [])).
+            any { it.currentValue("motion") == "active" }
     ) {
         return true;
     }
