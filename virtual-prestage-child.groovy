@@ -107,7 +107,7 @@ void updateSubscriptions() {
         }
         subscribe(secondaryDevices, "switch.on", "secondaryDeviceOn");
         subscribe(secondaryDevices, "colorMode", "secondaryDeviceOn");
-        updateDevices(secondaryDevices?.findAll { it.currentValue("switch") == "on" });
+        updateDevices(secondaryDevices);
     }
 
 }
@@ -134,7 +134,7 @@ void primaryDeviceChanged(event) {
     debug "Primary device changed: ${event.name} to ${event.value}"
     if( event.name != "colorMode" ) {
         updateDevices(
-            secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: [],
+            secondaryDevices,
             event.name
         );
     }
@@ -164,6 +164,11 @@ void updateDevices(targets, targetProperty = null) {
         def command = it[3];
         def colorMode = it[4];
 
+        def value = primaryDevice.currentValue(property)
+        if( value == null ) {
+            return
+        }
+
         def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
 
         if( applicable ) {
@@ -175,27 +180,28 @@ void updateDevices(targets, targetProperty = null) {
                     skip += notApplicable;
                 }
             }
+            applicable -= skip
 
-            // This code currently does nothing, since the function is only
-            // called for devices that are on.  If we ever want to uncomment
-            // this, we'll need to call it for devices with this capability as
-            // well.
-            //
-            // if( property == "level" ) {
-            //     def presettable = (targets - skip).findAll { it.hasCapability("LevelPreset") };
-            //     presettable*.presetLevel(primaryDevice.currentValue("level"));
-            //     skip += presettable;
-            // }
+            def onDevices = applicable.findAll { it.currentValue("switch") == "on" }
+            def offDevices = applicable - onDevices
 
-            def value = primaryDevice.currentValue(property);
-            applicable -= skip;
-            if( value != null  && applicable ) {
-                debug("Setting ${applicable} ${property} to ${value}");
-                applicable.each{
-                    if( it.currentValue("switch") == "on" ) {
-                        it."${command}"(value);
-                        pauseExecution(meteringDelay ?: 0);
-                    }
+            if( offDevices && property == "level" ) {
+                def presettable = offDevices.findAll { it.hasCapability("LevelPreset") };
+                debug("Prestaging ${presettable} ${property} to ${value}");
+                presettable*.presetLevel(value);
+            } else if( offDevices && property == "colorTemperature" ) {
+                // UGLY UGLY HACK: The Philips Hue Zigbee Driver by jonathanb will prestage CT when given a CT while off; but the Advanced
+                // Zigbee Bulb driver will turn the light on.  Clumsily identify the Hue driver by checking for a unique command it provides.
+                def presettable = offDevices.findAll { it.hasCommand("setEnhancedHue") && it.hasCapability("ColorTemperature") };
+                debug("Prestaging ${presettable} ${property} to ${value}");
+                presettable*."${command}"(value);
+            } // TODO: Colour
+
+            if( onDevices ) {
+                debug("Setting ${onDevices} ${property} to ${value}");
+                onDevices.each{
+                    it."${command}"(value);
+                    pauseExecution(meteringDelay ?: 0);
                 }
             }
         }
