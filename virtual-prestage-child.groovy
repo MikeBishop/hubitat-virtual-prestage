@@ -156,9 +156,9 @@ void updateDevices(targets) {
     };
     targetProperties = targetProperties.findAll{settings[it[1]]};
     
-    if( targetProperties.any() ) {
-        def capability = targetProperties[0][1];
-        def colorMode = targetProperties[0][3];
+    targetProperties.each{
+        def capability = it[1];
+        def colorMode = it[3];
 
         def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
 
@@ -212,9 +212,7 @@ void updateDevices(targets) {
                 }
                 break;
         }
-    }
-    else {
-        warn "No applicable properties for ${targets}?"
+        targets -= applicable;
     }
 }
 
