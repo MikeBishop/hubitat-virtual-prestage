@@ -177,13 +177,15 @@ void updateDevices(targets) {
 
                 debug "Setting ${applicable} to CT ${ct}" + (level ? " at level ${level}" : "");
                 applicable.each{
-                    if (level) {
-                        it.setColorTemperature(ct, level);                            
+                    if( it.currentValue("switch") == "on" ) {
+                        if (level) {
+                            it.setColorTemperature(ct, level);                            
+                        }
+                        else {
+                            it.setColorTemperature(ct);
+                        }
+                        pauseExecution(meteringDelay ?: 0);
                     }
-                    else {
-                        it.setColorTemperature(ct);
-                    }
-                    pauseExecution(meteringDelay ?: 0);
                 }
                 break;
             case "RGB":
@@ -197,8 +199,10 @@ void updateDevices(targets) {
 
                 debug "Setting ${applicable} to RGB ${colorMap}";
                 applicable.each{
-                    it.setColor(colorMap);
-                    pauseExecution(meteringDelay ?: 0);
+                    if( it.currentValue("switch") == "on" ) {
+                        it.setColor(colorMap);
+                        pauseExecution(meteringDelay ?: 0);
+                    }
                 }
 
                 break;
@@ -206,8 +210,10 @@ void updateDevices(targets) {
                 if( level ) {
                     debug "Setting ${applicable} to level ${level}";
                     applicable.each{
-                        it.setLevel(level);
-                        pauseExecution(meteringDelay ?: 0);
+                        if( it.currentValue("switch") == "on" ) {
+                            it.setLevel(level);
+                            pauseExecution(meteringDelay ?: 0);
+                        }
                     }
                 }
                 break;
