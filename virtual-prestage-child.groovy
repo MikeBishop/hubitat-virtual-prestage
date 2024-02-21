@@ -150,7 +150,7 @@ void secondaryDeviceOn(event) {
 }
 
 void updateDevices(targets) {
-    def primaryColorMode = primaryDevice.currentValue("colorMode");
+    def primaryColorMode = primaryDevice?.currentValue("colorMode");
     targetProperties = SUPPORTED_PROPERTIES.findAll{ 
         it[3] == primaryColorMode || it[3] == null
     };
@@ -170,10 +170,10 @@ void updateDevices(targets) {
             }
         }
 
-        def level = settings["SwitchLevel"] ? primaryDevice.currentValue("level") : null;
+        def level = settings["SwitchLevel"] ? primaryDevice?.currentValue("level") : null;
         switch( colorMode ) {
             case "CT":
-                def ct = primaryDevice.currentValue("colorTemperature");
+                def ct = primaryDevice?.currentValue("colorTemperature");
 
                 debug "Setting ${applicable} to CT ${ct}" + (level ? " at level ${level}" : "");
                 applicable.each{
@@ -190,11 +190,11 @@ void updateDevices(targets) {
                 break;
             case "RGB":
                 def colorMap = [
-                    hue: primaryDevice.currentValue("hue"),
-                    saturation: primaryDevice.currentValue("saturation")
+                    hue: primaryDevice?.currentValue("hue"),
+                    saturation: primaryDevice?.currentValue("saturation")
                 ];
                 if( includeLevel ) {
-                    colorMap["level"] = primaryDevice.currentValue("level");
+                    colorMap["level"] = primaryDevice?.currentValue("level");
                 }
 
                 debug "Setting ${applicable} to RGB ${colorMap}";
