@@ -58,15 +58,19 @@ Map mainPage() {
                         maybeBold("variable", !disableType) + " or " +
                         maybeBold("switch", disableType) + "?",
                     defaultValue: true
-                if( disableType) {
-                    input "disableSwitch", "capability.switch", title: "Switch to disable",
-                        required: false, multiple: false, submitOnChange: true, width: 5
-                }    
-                else {
-                    input "disableVar", "enum", options: booleanVars.sort(),
-                        title: "Variable to disable", width: 5
-                }        
             }
+            else {
+                app.updateSetting("disableType", true);
+            }
+
+            if( disableType) {
+                input "disableSwitch", "capability.switch", title: "Switch to disable",
+                    required: false, multiple: false, submitOnChange: true, width: 5
+            }    
+            else {
+                input "disableVar", "enum", options: booleanVars.sort(),
+                    title: "Variable to disable", width: 5, required: false
+            }        
 
             if( disableSwitchState == null ) {
                 app.updateSetting("disableSwitchState", true);
