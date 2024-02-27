@@ -107,10 +107,6 @@ void initialize() {
     subscribe(disableSwitch, "switch", "disableSwitchChanged");
     updateSubscriptions();
 
-    if( disableType == null ) {
-        app.updateSetting("disableType", true);
-    }
-
     if( !disableType && disableVar ) {
         addInUseGlobalVar(disableVar);
         subscribe(location, "variable:${disableVar}", "disableSwitchChanged");
