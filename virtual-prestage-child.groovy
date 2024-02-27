@@ -39,7 +39,7 @@ Map mainPage() {
             input "secondaryDevices", "capability.switchLevel", title: "Secondary Devices",
                 multiple: true, submitOnChange: true
 
-            SUPPORTED_PROPERTIES.each{
+            (SUPPORTED_PROPERTIES + [["Color Mode", "ColorMode"]]).each{
                 def name = it[0];
                 def capability = it[1];
 
@@ -100,13 +100,20 @@ void updateSubscriptions() {
     else {
         SUPPORTED_PROPERTIES.each{
             def capability = it[1];
-            def property = it[2];
+            def properties = it[2];
             if( primaryDevice?.hasCapability(capability) && settings[capability] ) {
-                subscribe(primaryDevice, property, "primaryDeviceChanged");
+                properties.each{
+                    subscribe(primaryDevice, it, "primaryDeviceChanged");
+                };
             }
         }
+        subscribe(primaryDevice, "colorMode", "primaryDeviceChanged");
         subscribe(secondaryDevices, "switch.on", "secondaryDeviceOn");
-        subscribe(secondaryDevices, "colorMode", "secondaryDeviceOn");
+        if( !settings["ColorMode"] ) {
+            // If we're not syncing color mode, we need to re-evaluate if it
+            // changes on a secondary
+            subscribe(secondaryDevices, "colorMode", "secondaryDeviceOn");
+        }
         updateDevices(secondaryDevices?.findAll { it.currentValue("switch") == "on" });
     }
 
@@ -132,17 +139,9 @@ void disableSwitchChanged(event) {
 
 void primaryDeviceChanged(event) {
     debug "Primary device changed: ${event.name} to ${event.value}"
-    if( event.name != "colorMode" ) {
-        updateDevices(
-            secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: [],
-            event.name
-        );
-    }
-    else {
-        updateDevices(
-            secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: []
-        );
-    }
+    updateDevices(
+        secondaryDevices?.findAll { it.currentValue("switch") == "on" } ?: []
+    );
 }
 
 void secondaryDeviceOn(event) {
@@ -150,63 +149,83 @@ void secondaryDeviceOn(event) {
     updateDevices([event.device])
 }
 
-void updateDevices(targets, targetProperty = null) {
-    def targetProperties = targetProperty == null ?
-            SUPPORTED_PROPERTIES :
-            [SUPPORTED_PROPERTIES.find{ it[2] == targetProperty}];
-    if( primaryDevice?.hasCapability("ColorMode") ) {
-        def primaryColorMode = primaryDevice.currentValue("colorMode");
-        targetProperties = targetProperties.findAll{it[4] == null || it[4] == primaryColorMode};
-    }
-    targetProperties.findAll{settings[it[1]]}.each{
+void updateDevices(targets) {
+    def primaryColorMode = primaryDevice?.currentValue("colorMode");
+    targetProperties = SUPPORTED_PROPERTIES.findAll{ 
+        it[3] == primaryColorMode || it[3] == null
+    };
+    targetProperties = targetProperties.findAll{settings[it[1]]};
+    
+    targetProperties.each{
         def capability = it[1];
-        def property = it[2];
-        def command = it[3];
-        def colorMode = it[4];
+        def colorMode = it[3];
 
         def applicable = targets?.findAll { it.hasCapability(capability) } ?: [];
 
-        if( applicable ) {
-            def skip = [];
-            if( colorMode != null ) {
-                def notApplicable = applicable.findAll { it.hasCapability("ColorMode") && it.currentValue("colorMode") != colorMode };
-                if( notApplicable ) {
-                    debug("Skipping ${notApplicable} ${property} because color mode is ${notApplicable*.currentValue("colorMode")} and not ${colorMode}");
-                    skip += notApplicable;
-                }
+        if( colorMode != null && !settings["ColorMode"] ) {
+            def notApplicable = applicable.findAll { it.hasCapability("ColorMode") && it.currentValue("colorMode") != colorMode };
+            if( notApplicable ) {
+                debug("Skipping ${notApplicable} ${capability} because color mode is ${notApplicable*.currentValue("colorMode")} and not ${colorMode}");
+                applicable -= notApplicable;
             }
+        }
 
-            // This code currently does nothing, since the function is only
-            // called for devices that are on.  If we ever want to uncomment
-            // this, we'll need to call it for devices with this capability as
-            // well.
-            //
-            // if( property == "level" ) {
-            //     def presettable = (targets - skip).findAll { it.hasCapability("LevelPreset") };
-            //     presettable*.presetLevel(primaryDevice.currentValue("level"));
-            //     skip += presettable;
-            // }
+        def level = settings["SwitchLevel"] ? primaryDevice?.currentValue("level") : null;
+        switch( colorMode ) {
+            case "CT":
+                def ct = primaryDevice?.currentValue("colorTemperature");
 
-            def value = primaryDevice.currentValue(property);
-            applicable -= skip;
-            if( value != null  && applicable ) {
-                debug("Setting ${applicable} ${property} to ${value}");
+                debug "Setting ${applicable} to CT ${ct}" + (level ? " at level ${level}" : "");
                 applicable.each{
                     if( it.currentValue("switch") == "on" ) {
-                        it."${command}"(value);
+                        if (level) {
+                            it.setColorTemperature(ct, level);                            
+                        }
+                        else {
+                            it.setColorTemperature(ct);
+                        }
                         pauseExecution(meteringDelay ?: 0);
                     }
                 }
-            }
+                break;
+            case "RGB":
+                def colorMap = [
+                    hue: primaryDevice?.currentValue("hue"),
+                    saturation: primaryDevice?.currentValue("saturation")
+                ];
+                if( includeLevel ) {
+                    colorMap["level"] = primaryDevice?.currentValue("level");
+                }
+
+                debug "Setting ${applicable} to RGB ${colorMap}";
+                applicable.each{
+                    if( it.currentValue("switch") == "on" ) {
+                        it.setColor(colorMap);
+                        pauseExecution(meteringDelay ?: 0);
+                    }
+                }
+
+                break;
+            case null:
+                if( level ) {
+                    debug "Setting ${applicable} to level ${level}";
+                    applicable.each{
+                        if( it.currentValue("switch") == "on" ) {
+                            it.setLevel(level);
+                            pauseExecution(meteringDelay ?: 0);
+                        }
+                    }
+                }
+                break;
         }
+        targets -= applicable;
     }
 }
 
 @Field static final List SUPPORTED_PROPERTIES = [
-    ["Color Temperature", "ColorTemperature", "colorTemperature", "setColorTemperature", "CT"],
-    ["Hue", "ColorControl", "hue", "setHue", "RGB"],
-    ["Saturation", "ColorControl", "saturation", "setSaturation", "RGB"],
-    ["Level", "SwitchLevel", "level", "setLevel", null]
+    ["Color Temperature", "ColorTemperature", ["colorTemperature"], "CT"],
+    ["RGB Color", "ColorControl", ["hue", "saturation"], "RGB"],
+    ["Level", "SwitchLevel", ["level"], null]
 ]
 
 void debug(String msg) {
