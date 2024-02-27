@@ -173,7 +173,7 @@ void updateSettings(Map newSettings) {
 }
 
 void disableSwitchChanged(event) {
-    debug "Switch changed to ${event.value} (${actionsDisabled() ? "disabled" : "enabled"})"
+    debug "${event.device} ${event.name} changed to ${event.value} (${actionsDisabled() ? "disabled" : "enabled"})"
     updateSubscriptions();
 }
 
