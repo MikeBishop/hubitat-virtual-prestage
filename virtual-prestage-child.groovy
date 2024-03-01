@@ -161,7 +161,7 @@ Boolean actionsDisabled() {
         // Switch
         disableSwitch?.currentValue("switch") == (disableSwitchState ? "on" : "off") :
         // Variable
-        disableVar ? getGlobalVar(disableVar)?.value != disableSwitchState : false;
+        disableVar ? getGlobalVar(disableVar)?.value == disableSwitchState : false;
 }
 
 void updateSettings(Map newSettings) {
