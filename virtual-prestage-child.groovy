@@ -51,17 +51,36 @@ Map mainPage() {
                 }
             }
 
-            input "disableSwitch", "capability.switch", title: "Switch to disable",
-                required: false, multiple: false, submitOnChange: true, width: 5
+            def booleanVars = getGlobalVarsByType("boolean").collect{ it.key }
+            if( booleanVars.any() ) {
+                input "disableType", "bool", submitOnChange: true,
+                    title: "Disable using a " +
+                        maybeBold("variable", !disableType) + " or " +
+                        maybeBold("switch", disableType) + "?",
+                    defaultValue: true
+            }
+            else {
+                app.updateSetting("disableType", true);
+            }
 
-            if( disableSwitch ) {
-                if( disableSwitchState == null ) {
-                    app.updateSetting("disableSwitchState", true);
-                }
+            if( disableType) {
+                input "disableSwitch", "capability.switch", title: "Switch to disable",
+                    required: false, multiple: false, submitOnChange: true, width: 5
+            }    
+            else {
+                input "disableVar", "enum", options: booleanVars.sort(),
+                    title: "Variable to disable", width: 5, required: false
+            }        
+
+            if( disableSwitchState == null ) {
+                app.updateSetting("disableSwitchState", true);
+            }
+            def text = disableType ? ["switch", "off", "on"] : ["variable", "false", "true"];
+            if( disableSwitch || disableVar ) {
                 input "disableSwitchState", "bool",
-                    title: "Disable when switch is " +
-                        maybeBold("on", disableSwitchState) + " or " +
-                        maybeBold("off", !disableSwitchState) + "?",
+                    title: "Disable when ${text[0]} is " +
+                        maybeBold(text[1], !disableSwitchState) +" or " +
+                        maybeBold(text[2], disableSwitchState) + "?",
                     defaultValue: true, submitOnChange: true, width: 5
             }
 
@@ -87,12 +106,27 @@ void initialize() {
         app.updateSetting("thisName", "Virtual Prestaging");
     }
     unsubscribe();
+    removeAllInUseGlobalVar();
+    
     subscribe(disableSwitch, "switch", "disableSwitchChanged");
     updateSubscriptions();
+
+    if( !disableType && disableVar ) {
+        addInUseGlobalVar(disableVar);
+        subscribe(location, "variable:${disableVar}", "disableSwitchChanged");
+    }
+}
+
+void renameVariable(String oldName, String newName) {
+    if( disableVar == oldName ) {
+        app.updateSetting("disableVar", newName);
+        removeInUseGlobalVar(oldName);
+        addInUseGlobalVar(newName);
+    }
 }
 
 void updateSubscriptions() {
-    if( switchDisabled() ) {
+    if( actionsDisabled() ) {
         unsubscribe(secondaryDevices);
         unsubscribe(primaryDevice);
         subscribe(disableSwitch, "switch", "disableSwitchChanged");
@@ -119,8 +153,15 @@ void updateSubscriptions() {
 
 }
 
-Boolean switchDisabled() {
-    return disableSwitch?.currentValue("switch") == (disableSwitchState ? "on" : "off");
+Boolean actionsDisabled() {
+    if( disableType == null ) {
+        app.updateSetting("disableType", true);
+    }
+    return disableType ?
+        // Switch
+        disableSwitch?.currentValue("switch") == (disableSwitchState ? "on" : "off") :
+        // Variable
+        disableVar ? getGlobalVar(disableVar)?.value == disableSwitchState : false;
 }
 
 void updateSettings(Map newSettings) {
@@ -132,8 +173,7 @@ void updateSettings(Map newSettings) {
 }
 
 void disableSwitchChanged(event) {
-    def disabled = event.value == (disableSwitchState ? "on" : "off")
-    debug "Switch changed to ${event.value} (${disabled ? "disabled" : "enabled"})"
+    debug "${event.device} ${event.name} changed to ${event.value} (${actionsDisabled() ? "disabled" : "enabled"})"
     updateSubscriptions();
 }
 
