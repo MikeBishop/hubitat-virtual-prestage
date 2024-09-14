@@ -1,6 +1,6 @@
 /*
     Contained Motion
-    Copyright 2023 Mike Bishop,  All Rights Reserved
+    Copyright 2023-2024 Mike Bishop,  All Rights Reserved
 */
 definition (
     parent: "evequefou:Contained Motion",
@@ -38,10 +38,14 @@ Map mainPage() {
                 required: false, multiple: true
 
             input "boundaryContactSensors", "capability.contactSensor",
-                title: "Boundary Contact Sensors", multiple: true
+                title: "Boundary contact sensors", multiple: true
 
             input "presenceContactSensors", "capability.contactSensor",
-                title: "Contact Sensors where Closed indicates Presence",
+                title: "Contact Sensors where closed indicates ongoing presence",
+                multiple: true
+
+            input "interiorContactSensors", "capability.contactSensor",
+                title: "Contact Sensors where activity indicates Presence",
                 multiple: true
 
             input "delay", "number", title: "Delay (seconds) before inactive",
@@ -79,14 +83,15 @@ void subscribeAll() {
     subscribe(motionSensorsStay, "motion.inactive", handlePresenceIndication);
     subscribe(boundaryContactSensors, "contact", handleBoundary);
     subscribe(presenceContactSensors, "contact", handlePresenceIndication);
+    subscribe(interiorContactSensors, "contact", handlePresenceIndication);
 }
 
 void handleBoundary(evt) {
-    debug "Received ${evt.name} event (${evt.value}) from ${evt.device}"
     if( evt.value == "open" ) {
         subscribeAll();
+        handlePresenceIndication(evt);
     }
-    if( !presenceIsIndicated() ) {
+    else if( !presenceIsIndicated() ) {
         delayedTriggerNotPresent();
     }
 }
@@ -130,19 +135,26 @@ void sendMessage(value) {
 }
 
 void handlePresenceIndication(evt) {
-    debug "Received ${evt.name} event (${evt.value}) from ${evt.device}"
     def indicatesPresence = eventIndicatesPresence(evt);
     def allClosed = boundaryContactSensors?.every { it.currentValue("contact") == "closed" }
+
+    debug "Received ${evt.name} event (${evt.value}) from ${evt.device} (${indicatesPresence ? "indicates " : "does not indicate "} presence)"
+
     if( indicatesPresence ) {
         if( allClosed ) {
-            debug "Unsubscribing from presence events"
+            debug "Unsubscribing from interior events"
             unsubscribe(motionSensors);
             unsubscribe(motionSensorsStay);
             unsubscribe(presenceContactSensors);
+            unsubscribe(interiorContactSensors);
         }
-        triggerPresent();
+
+        if (allClosed || delay > 0 || presenceIsIndicated()) {
+            triggerPresent();
+        }
     }
-    else if( !presenceIsIndicated() ) {
+
+    if( !allClosed && !presenceIsIndicated() ) {
         delayedTriggerNotPresent();
     }
 }
@@ -165,7 +177,7 @@ Boolean presenceIsIndicated() {
 
 Boolean eventIndicatesPresence(evt) {
     return (evt.name == "motion" && evt.value == "active") ||
-        (evt.name == "contact" && evt.value == "closed");
+        (evt.name == "contact");
 }
 
 void updateSettings(Map newSettings) {
