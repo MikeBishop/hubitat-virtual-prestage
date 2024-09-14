@@ -31,8 +31,11 @@ Map mainPage() {
             input "thisName", "text", title: "Name this instance", submitOnChange: true
             if(thisName) app.updateLabel("$thisName")
 
-            input "motionSensors", "capability.motionSensor", title: "Motion Sensors",
+            input "motionSensors", "capability.motionSensor", title: "Motion Sensors to trigger Active",
                 required: true, multiple: true
+
+            input "motionSensorsStay", "capability.motionSensor", title: "Motion Sensors to keep Active",
+                required: false, multiple: true
 
             input "boundaryContactSensors", "capability.contactSensor",
                 title: "Boundary Contact Sensors", multiple: true
@@ -73,6 +76,7 @@ void initialize() {
 
 void subscribeAll() {
     subscribe(motionSensors, "motion", handlePresenceIndication);
+    subscribe(motionSensorsStay, "motion.inactive", handlePresenceIndication);
     subscribe(boundaryContactSensors, "contact", handleBoundary);
     subscribe(presenceContactSensors, "contact", handlePresenceIndication);
 }
@@ -88,9 +92,13 @@ void handleBoundary(evt) {
 }
 
 void delayedTriggerNotPresent() {
+    if( state.currentValue == "inactive" ) {
+        return;
+    }
     if( delay > 0 ) {
         debug "Setting output to inactive in ${delay} seconds"
         runIn(delay, "triggerNotPresent", [overwrite: false]);
+        subscribe(motionSensorsStay, "motion.active", handlePresenceIndication);
     }
     else {
         triggerNotPresent();
@@ -98,10 +106,19 @@ void delayedTriggerNotPresent() {
 }
 
 void triggerPresent() {
+    unschedule("triggerNotPresent");
+    unsubscribe(motionSensorsStay, "motion.active");
+    if( state.currentValue == "active" ) {
+        return;
+    }
     sendMessage("active");
 }
 
 void triggerNotPresent() {
+    if( state.currentValue == "inactive" ) {
+        return;
+    }
+    unsubscribe(motionSensorsStay, "motion.active");
     sendMessage("inactive");
 }
 
@@ -109,6 +126,7 @@ void sendMessage(value) {
     unschedule("triggerNotPresent");
     debug "Setting output to ${value}"
     parent.getRootDevice().parse([[id: app.id, zone: thisName, name: "motion", value: value]]);
+    state.currentValue = value;
 }
 
 void handlePresenceIndication(evt) {
@@ -117,8 +135,9 @@ void handlePresenceIndication(evt) {
     def allClosed = boundaryContactSensors?.every { it.currentValue("contact") == "closed" }
     if( indicatesPresence ) {
         if( allClosed ) {
-            debug "Unsubscribing from motion events"
+            debug "Unsubscribing from presence events"
             unsubscribe(motionSensors);
+            unsubscribe(motionSensorsStay);
             unsubscribe(presenceContactSensors);
         }
         triggerPresent();
@@ -130,8 +149,13 @@ void handlePresenceIndication(evt) {
 
 Boolean presenceIsIndicated() {
     if( presenceContactSensors.any { it.currentValue("contact") == "closed"} ||
-        motionSensors.any { it.currentValue("motion") == "active" }
+        (motionSensors + (motionSensorsStay ?: [])).
+            any { it.currentValue("motion") == "active" }
     ) {
+        def activeSensors = (presenceContactSensors ?: []).findAll({ it.currentValue("contact") == "closed" }) +
+            ((motionSensors ?: []) + (motionSensorsStay ?: [])).
+                findAll({ it.currentValue("motion") == "active" });
+        debug("Still waiting for ${activeSensors}");
         return true;
     }
     else {
