@@ -39,3 +39,4 @@ there's no continued indication of presence does the output go inactive.
 * [1/7/2023]   Initial release of Virtual Prestaging
 * [4/13/2023]  Assorted improvements to Virtual Prestaging
 * [6/26/2023]  Initial release of Contained Motion
+* [9/14/2024]  Contained Motion: motion sensors that only keep active
