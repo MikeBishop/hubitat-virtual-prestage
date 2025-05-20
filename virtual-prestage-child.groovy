@@ -151,7 +151,19 @@ void secondaryDeviceOn(event) {
 
 void updateDevices(targets) {
     def primaryColorMode = primaryDevice?.currentValue("colorMode");
-    targetProperties = SUPPORTED_PROPERTIES.findAll{ 
+    if( !primaryColorMode ) {
+        if( primaryDevice?.hasCapability("ColorControl") ) {
+            primaryColorMode = "RGB";
+        }
+        else if( primaryDevice?.hasCapability("ColorTemperature") ) {
+            primaryColorMode = "CT";
+        }
+        else {
+            primaryColorMode = null;
+            log.warn "Primary device ${primaryDevice} does not have a color mode?";
+        }
+    }
+    targetProperties = SUPPORTED_PROPERTIES.findAll{
         it[3] == primaryColorMode || it[3] == null
     };
     targetProperties = targetProperties.findAll{settings[it[1]]};
