@@ -94,6 +94,9 @@ void handleBoundary(evt) {
     else if( !presenceIsIndicated() ) {
         delayedTriggerNotPresent();
     }
+    else {
+        debug "Received ${evt.name} event (${evt.value}) from ${evt.device}, but presence is still indicated"
+    }
 }
 
 void delayedTriggerNotPresent() {
@@ -147,6 +150,7 @@ void handlePresenceIndication(evt) {
             unsubscribe(motionSensorsStay);
             unsubscribe(presenceContactSensors);
             unsubscribe(interiorContactSensors);
+            subscribe(boundaryContactSensors, "contact", handleBoundary);
         }
 
         if (allClosed || delay > 0 || presenceIsIndicated()) {
@@ -154,7 +158,7 @@ void handlePresenceIndication(evt) {
         }
     }
 
-    if( !allClosed && !presenceIsIndicated() ) {
+    if( (!indicatesPresence || !allClosed) && !presenceIsIndicated() ) {
         delayedTriggerNotPresent();
     }
 }
